@@ -27,6 +27,11 @@ Java_com_rife_android_RifeEngine_initEngine(
     ncnn::create_gpu_instance();
     g_vkdev = ncnn::get_gpu_device(0);
     
+    if (!g_vkdev) {
+        LOGE("No Vulkan device found!");
+        return -2;
+    }
+
     g_rife_net = new ncnn::Net();
     g_rife_net->opt.use_vulkan_compute = true;
     g_rife_net->set_vulkan_device(g_vkdev);
@@ -47,7 +52,7 @@ Java_com_rife_android_RifeEngine_initEngine(
         return -1;
     }
     
-    LOGD("RIFE engine initialized via direct NCNN.");
+    LOGD("RIFE engine initialized.");
     return 0;
 }
 
@@ -60,7 +65,6 @@ Java_com_rife_android_RifeEngine_destroyEngine(
         g_rife_net = nullptr;
     }
     ncnn::destroy_gpu_instance();
-    LOGD("RIFE engine destroyed.");
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -82,24 +86,47 @@ Java_com_rife_android_RifeEngine_processFrame(
     unsigned char* p1 = stbi_load(f1_path, &w, &h, &c, 3);
 
     if (!p0 || !p1) {
+        LOGE("Failed to load images");
         if (p0) stbi_image_free(p0);
         if (p1) stbi_image_free(p1);
         return -1;
     }
 
-    ncnn::Mat in0 = ncnn::Mat::from_pixels(p0, ncnn::Mat::PIXEL_RGB, w, h);
-    ncnn::Mat in1 = ncnn::Mat::from_pixels(p1, ncnn::Mat::PIXEL_RGB, w, h);
+    // RIFE requires multiples of 32
+    int w_32 = (w + 31) / 32 * 32;
+    int h_32 = (h + 31) / 32 * 32;
+
+    ncnn::Mat in0 = ncnn::Mat::from_pixels_resize(p0, ncnn::Mat::PIXEL_RGB, w, h, w_32, h_32);
+    ncnn::Mat in1 = ncnn::Mat::from_pixels_resize(p1, ncnn::Mat::PIXEL_RGB, w, h, w_32, h_32);
     
-    // Simple RIFE v4 inference logic
+    // Normalize to [0, 1] as expected by RIFE
+    const float norm_vals[3] = {1/255.f, 1/255.f, 1/255.f};
+    in0.substract_mean_normalize(0, norm_vals);
+    in1.substract_mean_normalize(0, norm_vals);
+
+    ncnn::Mat timestep(1);
+    timestep[0] = 0.5f;
+
     ncnn::Extractor ex = g_rife_net->create_extractor();
     ex.input("input0", in0);
     ex.input("input1", in1);
+    ex.input("timestep", timestep);
     
     ncnn::Mat out;
-    ex.extract("output", out);
+    int ret = ex.extract("output", out);
 
+    if (ret != 0) {
+        LOGE("Inference failed with code: %d", ret);
+        stbi_image_free(p0);
+        stbi_image_free(p1);
+        return ret;
+    }
+
+    // Denormalize and save
     unsigned char* out_pixels = new unsigned char[w * h * 3];
-    out.to_pixels(out_pixels, ncnn::Mat::PIXEL_RGB);
+    // We resize back to original resolution
+    out.to_pixels_resize(out_pixels, ncnn::Mat::PIXEL_RGB, w_32, h_32, w, h);
+
     stbi_write_png(o_path, w, h, 3, out_pixels, w * 3);
 
     delete[] out_pixels;
