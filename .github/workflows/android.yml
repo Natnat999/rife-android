@@ -26,6 +26,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Download NCNN binaries
+        run: |
+          mkdir -p app/src/main/cpp/ncnn
+          cd app/src/main/cpp
+          wget -q https://github.com/Tencent/ncnn/releases/download/20240102/ncnn-20240102-android-vulkan.zip
+          unzip -q ncnn-20240102-android-vulkan.zip
+          mv ncnn-20240102-android-vulkan/* ncnn/
+          rm -rf ncnn-20240102-android-vulkan ncnn-20240102-android-vulkan.zip
+
       - name: Build with Gradle
         run: ./gradlew assembleDebug
 
