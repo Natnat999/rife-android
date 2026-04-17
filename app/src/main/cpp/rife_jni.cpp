@@ -124,8 +124,8 @@ Java_com_rife_android_RifeEngine_processFrame(
 
     // Denormalize and save
     unsigned char* out_pixels = new unsigned char[w * h * 3];
-    // We resize back to original resolution
-    out.to_pixels_resize(out_pixels, ncnn::Mat::PIXEL_RGB, w_32, h_32, w, h);
+    // We resize back to original resolution (w, h)
+    out.to_pixels_resize(out_pixels, ncnn::Mat::PIXEL_RGB, w, h);
 
     stbi_write_png(o_path, w, h, 3, out_pixels, w * 3);
 
