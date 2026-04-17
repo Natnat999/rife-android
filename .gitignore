@@ -1,0 +1,20 @@
+# Android
+build/
+.externalNativeBuild
+.cxx
+local.properties
+*.iml
+.gradle
+.idea
+
+# Native Binaries (NCNN)
+app/src/main/cpp/ncnn/
+app/src/main/cpp/*.zip
+app/src/main/cpp/rife-ncnn-vulkan-master/
+
+# Assets & Models
+app/src/main/assets/*
+!app/src/main/assets/.gitkeep
+
+# OS
+.DS_Store
